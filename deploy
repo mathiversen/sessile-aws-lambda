@@ -2,4 +2,5 @@
 
 cross build --example bootstrap --target x86_64-unknown-linux-gnu --release
 zip -j ./lambda.zip target/x86_64-unknown-linux-gnu/release/examples/bootstrap 
-aws lambda update-function-code --function-name rustTest --zip-file fileb://lambda.zip
+aws lambda update-function-code --function-name sessile-aws-lambda --zip-file fileb://lambda.zip
+rm lambda.zip

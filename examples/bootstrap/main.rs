@@ -1,4 +1,8 @@
+use std::env::set_var;
+
 fn main() {
+    set_var("RUST_LOG", "debug");
+
     env_logger::init();
 
     log::info!("Here we are again");
