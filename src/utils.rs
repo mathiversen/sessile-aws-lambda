@@ -1,4 +1,4 @@
-use lambda_http::{http::StatusCode, tower::BoxError, Body as LambdaBody, Request, Response};
+use lambda_http::{http::StatusCode, tower::BoxError, Body, Request, Response};
 use std::str::FromStr;
 use trillium::{Conn, Headers};
 use trillium_http::{Conn as HttpConn, Method, Synthetic};
@@ -10,9 +10,9 @@ pub fn lambda_req_to_conn(req: Request) -> HttpConn<Synthetic> {
     let path = parts.uri.path();
 
     let mut conn = match lambda_body {
-        LambdaBody::Empty => HttpConn::new_synthetic(method, path, None),
-        LambdaBody::Text(data) => HttpConn::new_synthetic(method, path, data),
-        LambdaBody::Binary(data) => HttpConn::new_synthetic(method, path, data),
+        Body::Empty => HttpConn::new_synthetic(method, path, None),
+        Body::Text(data) => HttpConn::new_synthetic(method, path, data),
+        Body::Binary(data) => HttpConn::new_synthetic(method, path, data),
     };
 
     let mut headers = Headers::new();
@@ -31,7 +31,7 @@ pub fn lambda_req_to_conn(req: Request) -> HttpConn<Synthetic> {
 }
 
 // TODO: Add everything else...
-pub async fn conn_to_res(mut conn: Conn) -> Result<Response<LambdaBody>, BoxError> {
+pub async fn conn_to_res(mut conn: Conn) -> Result<Response<Body>, BoxError> {
     let body = conn
         .request_body()
         .await
@@ -39,8 +39,10 @@ pub async fn conn_to_res(mut conn: Conn) -> Result<Response<LambdaBody>, BoxErro
         .await
         .expect("request body");
 
-    let mut response = Response::new(LambdaBody::Binary(body));
+    let mut response = Response::new(Body::Binary(body));
     *response.status_mut() = StatusCode::try_from(conn.status().unwrap() as u16)?;
+
+    log::trace!("{:?}", response);
 
     Ok(response)
 }

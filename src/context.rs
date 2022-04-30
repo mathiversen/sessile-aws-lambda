@@ -2,6 +2,7 @@ use lambda_http::lambda_runtime::Context;
 use std::ops::Deref;
 
 pub(crate) struct LambdaContext(Context);
+
 impl LambdaContext {
     pub fn new(context: Context) -> Self {
         Self(context)
