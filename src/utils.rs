@@ -1,7 +1,7 @@
 use lambda_http::{http::StatusCode, tower::BoxError, Body, Request, Response};
 use std::str::FromStr;
-use trillium::{Conn, Headers};
-use trillium_http::{Conn as HttpConn, Method, Synthetic};
+use trillium::{Conn, Headers, Status};
+use trillium_http::{transport::BoxedTransport, Conn as HttpConn, Method, Synthetic};
 
 pub fn lambda_req_to_conn(req: Request) -> HttpConn<Synthetic> {
     let (parts, lambda_body) = req.into_parts();
@@ -31,18 +31,34 @@ pub fn lambda_req_to_conn(req: Request) -> HttpConn<Synthetic> {
 }
 
 // TODO: Add everything else...
-pub async fn conn_to_res(mut conn: Conn) -> Result<Response<Body>, BoxError> {
-    let body = conn
-        .request_body()
-        .await
-        .read_bytes()
-        .await
-        .expect("request body");
+pub async fn conn_to_res(conn: Conn) -> Result<Response<Body>, BoxError> {
+    let mut conn = conn.into_inner();
+    let status = conn.status().unwrap_or(Status::NotFound);
+    let (body, is_base64_encoded) = response_body(&mut conn).await;
 
-    let mut response = Response::new(Body::Binary(body));
-    *response.status_mut() = StatusCode::try_from(conn.status().unwrap() as u16)?;
+    log::debug!("{:?}", &body);
 
-    log::trace!("{:?}", response);
+    let mut response = match (body, is_base64_encoded) {
+        (Some(body), _) => Response::new(Body::Text(body)),
+        (None, _) => Response::new(Body::Empty),
+    };
+
+    *response.status_mut() = StatusCode::try_from(status as u16)?;
+
+    log::trace!("{:?}", &response);
 
     Ok(response)
+}
+
+async fn response_body(conn: &mut HttpConn<BoxedTransport>) -> (Option<String>, bool) {
+    match conn.take_response_body() {
+        Some(body) => {
+            let bytes = body.into_bytes().await.unwrap();
+            match String::from_utf8(bytes.to_vec()) {
+                Ok(string) => (Some(string), false),
+                Err(e) => (Some(base64::encode(e.into_bytes())), true),
+            }
+        }
+        None => (None, false),
+    }
 }
