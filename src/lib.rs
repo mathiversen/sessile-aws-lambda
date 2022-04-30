@@ -19,35 +19,9 @@ mod context;
 pub use context::LambdaConnExt;
 use context::LambdaContext;
 
+mod request;
+mod response;
 mod utils;
-
-// pub async fn run_async(mut handler: impl Handler) {
-//     let mut info = "aws lambda".into();
-//     handler.init(&mut info).await;
-
-//     let handler = Arc::new(handler);
-
-//     lambda_http::run(service_fn(move |req: Request| {
-//         log::debug!("1 {:?}", req);
-//         let ctx = req.lambda_context();
-//         log::debug!("2 {:?}", ctx);
-//         let mut conn = utils::lambda_req_to_conn(req);
-//         log::debug!("3 {:?}", conn);
-//         conn.state_mut().insert(LambdaContext::new(ctx));
-
-//         let handler_clone = handler.clone();
-
-//         async move {
-//             let conn = run_handler(conn, handler_clone).await;
-//             log::debug!("4 {:?}", conn);
-//             let res = utils::conn_to_res(conn).await.unwrap();
-//             log::debug!("5 {:?}", res);
-//             Ok(res)
-//         }
-//     }))
-//     .await
-//     .unwrap();
-// }
 
 #[derive(Debug)]
 pub struct HandlerWrapper<H>(Arc<H>);
