@@ -8,6 +8,7 @@ fn main() {
     log::info!("Here we are again");
 
     sessile_aws_lambda::run(|conn: trillium::Conn| async move {
-        conn.ok("hello!").with_header("server", "123")
+        conn.ok(r#"{"hello": "world"}"#)
+            .with_header("Contet-Type", "text/html; charset=UTF-8")
     });
 }

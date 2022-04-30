@@ -1,7 +1,11 @@
-use lambda_http::{http::StatusCode, tower::BoxError, Body, Request, Response};
-use std::str::FromStr;
+use lambda_http::{
+    http::{header::HeaderName, HeaderValue, StatusCode},
+    tower::BoxError,
+    Body, Request, Response,
+};
+use std::{collections::HashMap, str::FromStr};
 use trillium::{Conn, Headers, Status};
-use trillium_http::{transport::BoxedTransport, Conn as HttpConn, Method, Synthetic};
+use trillium_http::{Conn as HttpConn, Method, Synthetic};
 
 pub fn lambda_req_to_conn(req: Request) -> HttpConn<Synthetic> {
     let (parts, lambda_body) = req.into_parts();
@@ -33,7 +37,6 @@ pub fn lambda_req_to_conn(req: Request) -> HttpConn<Synthetic> {
 // TODO: Add everything else...
 pub async fn conn_to_res(conn: Conn) -> Result<Response<Body>, BoxError> {
     let mut conn = conn.into_inner();
-    let status = conn.status().unwrap_or(Status::NotFound);
     let (body, is_base64_encoded) = response_body(&mut conn).await;
 
     log::debug!("{:?}", &body);
@@ -43,14 +46,32 @@ pub async fn conn_to_res(conn: Conn) -> Result<Response<Body>, BoxError> {
         (None, _) => Response::new(Body::Empty),
     };
 
+    let status = conn.status().unwrap_or(Status::NotFound);
     *response.status_mut() = StatusCode::try_from(status as u16)?;
+
+    let headers = conn
+        .response_headers()
+        .iter()
+        .fold(HashMap::new(), |mut h, (n, v)| {
+            if let Some(one) = v.one() {
+                h.insert(n.to_string(), one.to_string());
+            }
+            h
+        });
+
+    for (key, value) in headers {
+        let key = HeaderName::from_lowercase(key.to_ascii_lowercase().as_bytes())?;
+        let value = HeaderValue::from_str(&value)?;
+
+        response.headers_mut().insert(key, value);
+    }
 
     log::trace!("{:?}", &response);
 
     Ok(response)
 }
 
-async fn response_body(conn: &mut HttpConn<BoxedTransport>) -> (Option<String>, bool) {
+async fn response_body(conn: &mut HttpConn<Synthetic>) -> (Option<String>, bool) {
     match conn.take_response_body() {
         Some(body) => {
             let bytes = body.into_bytes().await.unwrap();
