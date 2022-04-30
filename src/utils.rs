@@ -1,9 +1,9 @@
 use lambda_http::{
-    http::{header::HeaderName, HeaderValue, StatusCode},
+    http::{header::HeaderName, HeaderValue, StatusCode, Version},
     tower::BoxError,
     Body, Request, Response,
 };
-use std::{collections::HashMap, str::FromStr};
+use std::str::FromStr;
 use trillium::{Conn, Headers, Status};
 use trillium_http::{Conn as HttpConn, Method, Synthetic};
 
@@ -34,7 +34,6 @@ pub fn lambda_req_to_conn(req: Request) -> HttpConn<Synthetic> {
     conn
 }
 
-// TODO: Add everything else...
 pub async fn conn_to_res(conn: Conn) -> Result<Response<Body>, BoxError> {
     let mut conn = conn.into_inner();
     let (body, is_base64_encoded) = response_body(&mut conn).await;
@@ -49,22 +48,19 @@ pub async fn conn_to_res(conn: Conn) -> Result<Response<Body>, BoxError> {
     let status = conn.status().unwrap_or(Status::NotFound);
     *response.status_mut() = StatusCode::try_from(status as u16)?;
 
-    let headers = conn
-        .response_headers()
-        .iter()
-        .fold(HashMap::new(), |mut h, (n, v)| {
-            if let Some(one) = v.one() {
-                h.insert(n.to_string(), one.to_string());
-            }
-            h
-        });
+    for (name, value) in conn.response_headers().iter() {
+        let name = HeaderName::from_str(&name.to_string())?;
+        let value = if let Some(value) = value.one() {
+            HeaderValue::from_str(&value.to_string())?
+        } else {
+            HeaderValue::from_str("")?
+        };
 
-    for (key, value) in headers {
-        let key = HeaderName::from_lowercase(key.to_ascii_lowercase().as_bytes())?;
-        let value = HeaderValue::from_str(&value)?;
-
-        response.headers_mut().insert(key, value);
+        response.headers_mut().insert(name, value);
     }
+
+    // TODO: Version, extensions
+    *response.version_mut() = Version::HTTP_2;
 
     log::trace!("{:?}", &response);
 
